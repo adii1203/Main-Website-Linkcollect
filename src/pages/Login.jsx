@@ -13,6 +13,8 @@ import Button from '../components/UI/Button/Button';
 import toast, { Toaster } from 'react-hot-toast';
 import { gaEvents } from '../components/analytics/gaAnalyticsEventHandler';
 
+import { gaEvents } from '../components/analytics/gaAnalyticsEventHandler';
+
 const Login = ({ windowWidth }) => {
   const location = useLocation();
   // const navigate = useNavigate();

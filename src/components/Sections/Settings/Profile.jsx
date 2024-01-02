@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import Upload from '../../../assets/upload.svg';
 import UploadWhiteIcon from '../../../assets/darkMode/uploadIcon.svg';
-import profile from '../../../assets/defaultProfile.svg';
+import defaultImage from '../../../assets/defaultImage.svg';
 import twitter from '../../../assets/twitterBlue.svg';
 import websiteIcon from '../../../assets/websiteIcon.svg';
 import twitterWhite from '../../../assets/darkMode/twitterIcon.svg';
@@ -27,6 +27,15 @@ const Profile = () => {
   // changed uploaded file
   const [uploadedFile, setUploadedFile] = useState(null);
 
+  // File max size
+  const MAXED_ALLOWED_SIZE = 1 * 1024 * 1024;
+
+  // userUpdate Loading state
+  const [updatingUser, setUpdatingUser] = useState(false);
+
+  //userLinkUpdate Loading state
+  const [updatingLinks, setUpdatingLinks] = useState(false);
+
   // handling profile pic input change
   function handleFileChange() {
     const fileInput = fileInputRef.current;
@@ -34,11 +43,52 @@ const Profile = () => {
     if (fileInput?.files && fileInput.files.length > 0) {
       const file = fileInput.files[0];
       fileLabel.innerText = '';
-      // console.log(file);
-      setUploadedFile(file);
-      // console.log(uploadedFile);
-      setSrc();
+      console.log(file);
+      if (file.size <= MAXED_ALLOWED_SIZE) {
+        if (
+          file.type === 'image/png' ||
+          file.type === 'image/jpeg' ||
+          file.type === 'image/jpg'
+        ) {
+          // console.log(file);
+          setUploadedFile(file);
+          // console.log(uploadedFile);
+          setSrc();
+        } else {
+          toast.error('Only png, jpeg, jpg files are allowed', {
+            style: {
+              border: '1px solid #4B4C63',
+              padding: '6px',
+              color: '#713200',
+              boxShadow: 'none',
+              width: 'max-content',
+              minWidth: 'max-content',
+            },
+          });
+        }
+      } else {
+        toast.error('Files size should be less than 1mb', {
+          style: {
+            border: '1px solid #4B4C63',
+            padding: '6px',
+            color: '#713200',
+            boxShadow: 'none',
+            width: 'max-content',
+            minWidth: 'max-content',
+          },
+        });
+      }
     } else {
+      toast.error('No file selected', {
+        style: {
+          border: '1px solid #4B4C63',
+          padding: '6px',
+          color: '#713200',
+          boxShadow: 'none',
+          width: 'max-content',
+          minWidth: 'max-content',
+        },
+      });
     }
   }
   // selected mode state
@@ -59,7 +109,7 @@ const Profile = () => {
     username: auth.username,
     isPublic: isPublic,
     email: auth.userData.email,
-    bio: auth.userData.bio ? auth.userData.email : '',
+    bio: auth.userData.bio,
   });
   // user social links
   const [userSocialLinks, setUserSocialLinks] = useState({
@@ -67,8 +117,6 @@ const Profile = () => {
     twitterUrl: '',
   });
 
-  // File max size
-  const MAXED_ALLOWED_SIZE = 1 * 1024 * 1024;
   // if no file is selected that means iamge is null so it will be always true as image is not mandatory data
   const isValidFileSize =
     uploadedFile === null ? true : uploadedFile.size <= MAXED_ALLOWED_SIZE;
@@ -95,6 +143,56 @@ const Profile = () => {
         setError(false);
         return true;
       }
+    }
+  };
+  const isValidSocialLink = async linksObject => {
+    let isTwitterUrlCorrect = false;
+    let isWebsiteUrlCorrect = false;
+    if (linksObject.twitterUrl === '' && linksObject.websiteUrl === '') {
+      return true;
+    }
+
+    if (linksObject.twitterUrl !== '') {
+      if (
+        linksObject.twitterUrl.startsWith('https://twitter.com') ||
+        linksObject.twitterUrl.startsWith('https://x.com')
+      ) {
+        isTwitterUrlCorrect = true;
+      } else {
+        toast.error('Invalid Twitter Link', {
+          style: {
+            border: '1px solid #4B4C63',
+            padding: '6px',
+            color: '#713200',
+            boxShadow: 'none',
+            width: 'max-content',
+            minWidth: 'max-content',
+          },
+        });
+        return false;
+      }
+    }
+
+    if (linksObject.websiteUrl !== '') {
+      if (linksObject.websiteUrl.startsWith('https://')) {
+        isWebsiteUrlCorrect = true;
+      } else {
+        toast.error('Invalid Website Link', {
+          style: {
+            border: '1px solid #4B4C63',
+            padding: '6px',
+            color: '#713200',
+            boxShadow: 'none',
+            width: 'max-content',
+            minWidth: 'max-content',
+          },
+        });
+        return false;
+      }
+    }
+
+    if (isTwitterUrlCorrect && isWebsiteUrlCorrect) {
+      return true;
     }
   };
   // Edit user details handler
@@ -131,10 +229,11 @@ const Profile = () => {
       username: auth.username,
       isPublic: auth.userData.isPublic,
       email: auth.userData.email,
+      bio: auth.userData.bio,
     };
     const setSocial = {
-      twitterUrl: auth.userData.socials[0],
-      websiteUrl: auth.userData.socials[1],
+      twitterUrl: auth.userData.socials[0] ? auth.userData.socials[0] : '',
+      websiteUrl: auth.userData.socials[1] ? auth.userData.socials[1] : '',
     };
     if (auth.isPublic) {
       setIsPublic(true);
@@ -144,41 +243,23 @@ const Profile = () => {
     setUserSocialLinks(setSocial);
   }, []);
 
-  const handleSave = async user => {
-    const isCorrectData = await isValidUsername(userProfileData.username);
-    if (isCorrectData === false) {
-      return;
-    } else if (!isValidFileSize) {
-      toast.error('Files size should be less than 1mb', {
-        style: {
-          border: '1px solid #4B4C63',
-          padding: '6px',
-          color: '#713200',
-          boxShadow: 'none',
-          width: 'max-content',
-          minWidth: 'max-content',
-        },
-      });
-      return;
-    }
+  const updateUserData = async () => {
     try {
+      setUpdatingUser(true);
+      const isCorrectData = await isValidUsername(userProfileData.username);
+      if (isCorrectData === false) {
+        return;
+      }
       const { username, fullName, isPublic, bio } = userProfileData;
-      const { twitterUrl, websiteUrl } = userSocialLinks;
       const userFormData = new FormData();
       userFormData.append('username', username);
       userFormData.append('name', fullName);
       userFormData.append('isPublic', isPublic);
       uploadedFile !== null && userFormData.append('profilePic', uploadedFile);
-      userFormData.append('socials', JSON.stringify([twitterUrl, websiteUrl]));
       userFormData.append('bio', bio);
 
-      console.log('Correct data', bio);
-
-      console.log('Not correct data', isValidFileSize);
-
       const userResponse = await patchUser(userFormData);
-
-      toast.success('User data Changed !!!', {
+      toast.success('User data Updated !!!', {
         style: {
           border: '1px solid #4B4C63',
           padding: '6px',
@@ -198,14 +279,11 @@ const Profile = () => {
             profilePic: userResponse.data.data.profilePic,
             isPublic: userResponse.data.data.isPublic,
             socials: userResponse.data.data.socials,
+            bio: userResponse.data.data.bio,
           },
         })
       );
-      // console.log(...userFormData);
-      // console.log("truthy", isCorrectData);
-      // console.log(userResponse);
     } catch (error) {
-      console.log('-', error);
       toast.error('Could not update Data', {
         style: {
           border: '1px solid #4B4C63',
@@ -217,6 +295,59 @@ const Profile = () => {
         },
       });
       console.log(error);
+    } finally {
+      setUpdatingUser(false);
+    }
+  };
+
+  const updateSocialLinks = async () => {
+    try {
+      setUpdatingLinks(true);
+      const isSocialLinkCorrect = await isValidSocialLink(userSocialLinks);
+      if (isSocialLinkCorrect === false) {
+        return;
+      }
+      const { twitterUrl, websiteUrl } = userSocialLinks;
+      const userFormData = new FormData();
+      userFormData.append('socials', JSON.stringify([twitterUrl, websiteUrl]));
+      const userResponse = await patchUser(userFormData);
+      toast.success('User Links Updated !!!', {
+        style: {
+          border: '1px solid #4B4C63',
+          padding: '6px',
+          color: '#713200',
+          boxShadow: 'none',
+          width: 'max-content',
+          minWidth: 'max-content',
+        },
+      });
+      dispatch(
+        setUser({
+          username: userResponse.data.data.username,
+          userData: {
+            name: userResponse.data.data.name,
+            email: auth.userData.email,
+            profilePic: userResponse.data.data.profilePic,
+            isPublic: userResponse.data.data.isPublic,
+            socials: userResponse.data.data.socials,
+            bio: userResponse.data.data.bio,
+          },
+        })
+      );
+    } catch (error) {
+      toast.error('Could not update Data', {
+        style: {
+          border: '1px solid #4B4C63',
+          padding: '6px',
+          color: '#713200',
+          boxShadow: 'none',
+          width: 'max-content',
+          minWidth: 'max-content',
+        },
+      });
+      console.log(error);
+    } finally {
+      setUpdatingLinks(false);
     }
   };
 
@@ -228,7 +359,9 @@ const Profile = () => {
         {/* Profile Image */}
         <div className="flex items-center justify-start w-full gap-6">
           <img
-            src={auth.userData.profilePic}
+            src={
+              auth.userData.profilePic ? auth.userData.profilePic : defaultImage
+            }
             ref={profilePicRef}
             alt=""
             className="w-20 h-20 rounded-full"
@@ -256,7 +389,7 @@ const Profile = () => {
                 } font-inter focus:outline-none`}
                 style={{ boxShadow: `0px 1px 2px rgba(16, 24, 40, 0.04)` }}
                 onChange={handleFileChange}
-                accept="image/png, image/jpg"
+                accept="image/png, image/jpeg"
               />
               {selectedMode === 'light' ? (
                 <img
@@ -374,7 +507,12 @@ const Profile = () => {
                     ? 'border-dark-secondary text-neutral-50 bg-dark-border '
                     : 'border-primary-100 text-neutral-900 bg-neutral-50 '
                 } focus:outline-none }`}
-                value={userProfileData.bio}
+                value={
+                  userProfileData.bio && userProfileData.bio !== 'undefined'
+                    ? userProfileData.bio
+                    : ''
+                }
+                placeholder="Add a bio - anyone visiting your profile will see it"
               />
             </div>
 
@@ -469,21 +607,15 @@ const Profile = () => {
           {/* save */}
           <div className="flex items-start w-full my-3">
             <button
-              onClick={() =>
-                handleSave({
-                  name: userProfileData.fullName,
-                  username: userProfileData.username,
-                  isPublic: userProfileData.isPublic,
-                  email: userProfileData.email,
-                })
-              }
-              className={` hover:bg-primary-500 hover:text-white transition-all duration-500 hover:scale-110 w-16 h-7 p-1.5 flex items-center justify-center border border-primary-500  ${
+              disabled={updatingUser}
+              onClick={updateUserData}
+              className={` hover:bg-primary-500 hover:text-white transition-all duration-500 hover:scale-110 h-7 p-1.5 flex items-center justify-center border border-primary-500  ${
                 selectedMode === 'light'
                   ? 'text-primary-500'
                   : 'text-neutral-50'
               } font-normal text-base rounded `}
             >
-              Save
+              {updatingUser ? 'Updating...' : 'Update'}
             </button>
           </div>
         </div>
@@ -516,16 +648,20 @@ const Profile = () => {
           >{`Note: Add Full Link (Should Start With https://)`}</span>
         </div>
         <div className="flex flex-col items-start justify-center w-full gap-4 md:flex-row">
-          <div className="relative flex items-start justify-center w-full  max-w-[395px]">
+          <div
+            className={`relative flex items-center justify-center w-full  max-w-[395px] rounded-lg border-2 focus-within:border-primary-300 ${
+              selectedMode === 'dark'
+                ? 'border-dark-secondary'
+                : 'border-primary-100'
+            } ${selectedMode === 'dark' ? 'bg-dark-border' : 'bg-neutral-50'} ${
+              selectedMode === 'dark' ? 'text-neutral-300' : 'text-neutral-900'
+            }`}
+          >
             <input
               type="text"
               name="twitterUrl"
               onChange={onChangeSocialLinks}
-              className={`w-full px-3 py-2 text-base font-normal border-2 rounded-lg focus:border-primary-300 ${
-                selectedMode === 'dark'
-                  ? 'border-dark-secondary'
-                  : 'border-primary-100'
-              } focus:outline-none ${
+              className={`w-full px-3 py-2 text-base bg-none font-normal rounded-lg focus:outline-none ${
                 selectedMode === 'dark' ? 'bg-dark-border' : 'bg-neutral-50'
               } ${
                 selectedMode === 'dark'
@@ -536,29 +672,27 @@ const Profile = () => {
               placeholder="twitter.com/"
             />
             {selectedMode === 'light' ? (
-              <img
-                src={twitter}
-                className="absolute w-5 h-5 -translate-y-1/2 right-4 top-1/2"
-                alt="twitter"
-              />
+              <img src={twitter} className="pr-3" alt="twitter" />
             ) : (
-              <img
-                src={twitterWhite}
-                className="absolute w-5 h-5 -translate-y-1/2 right-4 top-1/2"
-                alt="twitter"
-              />
+              <img src={twitterWhite} className="pr-3" alt="twitter" />
             )}
           </div>
-          <div className="relative flex items-start justify-center w-full max-w-[395px] ">
+          <div
+            className={`relative flex items-center justify-center w-full  max-w-[395px] rounded-lg border-2 focus-within::border-primary-300 ${
+              selectedMode === 'dark'
+                ? 'border-dark-secondary'
+                : 'border-primary-100'
+            } focus-within::outline-none ${
+              selectedMode === 'dark' ? 'bg-dark-border' : 'bg-neutral-50'
+            } ${
+              selectedMode === 'dark' ? 'text-neutral-300' : 'text-neutral-900'
+            }`}
+          >
             <input
               type="text"
               name="websiteUrl"
               onChange={onChangeSocialLinks}
-              className={`w-full px-3 py-2 text-base font-normal border-2 rounded-lg focus:border-primary-300 ${
-                selectedMode === 'dark'
-                  ? 'border-dark-secondary'
-                  : 'border-primary-100'
-              } focus:outline-none ${
+              className={`w-full px-3 py-2 text-base bg-none font-normal rounded-lg focus:outline-none ${
                 selectedMode === 'dark' ? 'bg-dark-border' : 'bg-neutral-50'
               } ${
                 selectedMode === 'dark'
@@ -569,17 +703,9 @@ const Profile = () => {
               placeholder="website url"
             />
             {selectedMode === 'light' ? (
-              <img
-                src={websiteIcon}
-                className="absolute w-5 h-5 -translate-y-1/2 right-4 top-1/2"
-                alt="twitter"
-              />
+              <img src={websiteIcon} className="pr-3" alt="twitter" />
             ) : (
-              <img
-                src={whiteWebsiteIcon}
-                className="absolute w-5 h-5 -translate-y-1/2 right-4 top-1/2"
-                alt="twitter"
-              />
+              <img src={whiteWebsiteIcon} className="pr-3" alt="twitter" />
             )}
           </div>
         </div>
@@ -587,19 +713,20 @@ const Profile = () => {
         {/* save */}
         <div className="flex items-start w-full">
           <button
+            disabled={updatingLinks}
             onClick={() =>
-              handleSave({
+              updateSocialLinks({
                 socials: [
                   userSocialLinks.twitterUrl,
                   userSocialLinks.websiteUrl,
                 ],
               })
             }
-            className={` hover:bg-primary-500 hover:text-white transition-all duration-500 hover:scale-110 w-16 h-7 p-1.5 flex items-center justify-center border border-primary-500  ${
+            className={` hover:bg-primary-500 hover:text-white transition-all duration-500 hover:scale-110 h-7 p-1.5 flex items-center justify-center border border-primary-500  ${
               selectedMode === 'light' ? 'text-primary-500' : 'text-neutral-50'
             } font-normal text-base rounded `}
           >
-            Save
+            {updatingLinks ? 'Updating...' : 'Update'}
           </button>
         </div>
       </div>

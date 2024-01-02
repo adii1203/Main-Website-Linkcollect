@@ -6,6 +6,7 @@ import CollectionHeader from '../../Common/CollectionHeader';
 import { useDispatch, useSelector } from 'react-redux';
 import { getByUsername } from '../../../api-services/userService';
 import Search from '../../Common/Search';
+
 import {
   collectionFetchingFailed,
   collectionFetchingSuccess,
@@ -21,14 +22,17 @@ import {
 import { SortActions } from '../../Common/ActiondropDown';
 import { togglePin } from '../../../api-services/collectionService';
 import SEO from '../../SEO/SEO';
+import useDropdown from '../../../hooks/useDropdown';
 
 import { switchMode } from '../../../hooks/switchMode';
+
 const OwnerProfile = ({ username, windowWidth }) => {
   const dispatch = useDispatch();
   const [query, setQuery] = useState('');
   const collection = useSelector(state => state.collection);
   const user = useSelector(state => state.auth);
   const [sortingType, setSortingType] = useState('RECENETLY_UPDATED');
+  const { toggleSortByDropdown, isSortByDropdownOpen } = useDropdown();
 
   useEffect(() => {
     // dispatch(getUserCollection({username}));
@@ -135,17 +139,22 @@ const OwnerProfile = ({ username, windowWidth }) => {
           isOwner={true}
           name="My Collection"
         />
-        <div
-          className={`w-full flex items-start justify-between gap-6 ${
-            windowWidth < 700 ? 'hidden' : ''
-          }`}
-        >
-          <div className=" w-[calc(100%-212px)]">
+        <div className="w-full flex items-start justify-between gap-6">
+          <div
+            className={`${
+              windowWidth < 700 ? 'w-full' : 'w-[calc(100%-212px)]'
+            }`}
+          >
             <Search query={query} setQuery={setQuery} />
           </div>
 
           {/* sort by */}
-          <SortActions name="Sort By" menuItems={menuItem} />
+          <SortActions
+            name="Sort By"
+            menuItems={menuItem}
+            isOpen={isSortByDropdownOpen}
+            toggleDropDown={toggleSortByDropdown}
+          />
         </div>
       </div>
       {/* Collections */}
